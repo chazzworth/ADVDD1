@@ -59,8 +59,8 @@ export default function CharacterCreation() {
     const handleCreate = async () => {
         setLoading(true);
         try {
-            await api.post('/characters', charData);
-            navigate('/dashboard');
+            const res = await api.post('/characters', charData);
+            navigate('/dashboard', { state: { newCharacterId: res.data.id } });
         } catch (error) {
             console.error(error);
             alert('Failed to create character');

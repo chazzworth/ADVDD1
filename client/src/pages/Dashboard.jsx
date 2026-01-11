@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Plus, Scroll, LogOut, Loader, Gamepad2 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -13,6 +13,7 @@ export default function Dashboard() {
     const [selectedChar, setSelectedChar] = useState('');
     const [selectedModel, setSelectedModel] = useState('claude-haiku-4-5-20251001');
     const [creating, setCreating] = useState(false);
+    const location = useLocation();
 
     useEffect(() => {
         fetchData();
@@ -26,8 +27,16 @@ export default function Dashboard() {
             ]);
             setCampaigns(campRes.data);
             setCharacters(charRes.data);
-            // Default select most recent character if exists
-            if (charRes.data.length > 0) setSelectedChar(charRes.data[0].id);
+
+            // Check for redirected character ID
+            if (location.state?.newCharacterId) {
+                setSelectedChar(location.state.newCharacterId);
+                // Clear state so refresh doesn't stick
+                window.history.replaceState({}, document.title);
+            } else if (charRes.data.length > 0) {
+                // Default select most recent character if exists
+                setSelectedChar(charRes.data[0].id);
+            }
         } catch (error) {
             console.error("Failed to fetch data", error);
         } finally {
