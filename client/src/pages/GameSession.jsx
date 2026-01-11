@@ -52,12 +52,22 @@ export default function GameSession() {
         try {
             const res = await api.post(`/game/campaigns/${id}/message`, {
                 content: userMsg.content,
-                apiKey: apiKey // Optional: if user wants to supply their own key in UI
+                apiKey: apiKey
             });
-            setMessages(prev => [...prev, res.data]);
+            // Handle new response format { message, character? }
+            const { message, character } = res.data;
+
+            // Fallback if old API format (just message)
+            const incomingMsg = message || res.data;
+
+            setMessages(prev => [...prev, incomingMsg]);
+
+            if (character) {
+                setCampaign(prev => ({ ...prev, character }));
+            }
+
         } catch (error) {
             console.error("Failed to send message", error);
-            // Revert or show error logic here
             setMessages(prev => [...prev, { role: 'system', content: "Error: The Dungeon Master is silent (Failed to connect). Check API Key." }]);
         } finally {
             setSending(false);
@@ -81,7 +91,15 @@ export default function GameSession() {
                 content: rollMessage,
                 apiKey: apiKey
             });
-            setMessages(prev => [...prev, res.data]);
+            // Handle new response format { message, character? }
+            const { message, character } = res.data;
+            const incomingMsg = message || res.data;
+
+            setMessages(prev => [...prev, incomingMsg]);
+
+            if (character) {
+                setCampaign(prev => ({ ...prev, character }));
+            }
         } catch (error) {
             console.error("Failed to send roll", error);
             setMessages(prev => [...prev, { role: 'system', content: "Error: Failed to send roll to DM." }]);

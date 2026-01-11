@@ -103,18 +103,18 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
             characterContext = `\nPLAYER CHARACTER:\nName: ${c.name}\nRace: ${c.race}\nClass: ${c.class}\nLevel: ${c.level}\nHP: ${c.hp}/${c.maxHp}\nAC: ${c.ac}\nStats: STR ${c.strength}, DEX ${c.dexterity}, CON ${c.constitution}, INT ${c.intelligence}, WIS ${c.wisdom}, CHA ${c.charisma}\nAlignment: ${c.alignment}`;
         }
 
-        const systemPrompt = `You are a BRUTAL, IMPARTIAL Dungeon Master running a solo campaign for a player using ${campaign.system} rules. 
-    Setting: World of Greyhawk or as specified. 
-    Rule 1: Be descriptive but DO NOT PANDER. You are a referee, not a fan.
-    Rule 2: Dice results are LAW. Do not fudge rolls to save the character. Death is part of the game.
-    Rule 3: Adhere strictly to the provided PDF Context (if any) for lore and rules.
+    Rule 3: Adhere strictly to the provided PDF Context(if any) for lore and rules.
+            Rule 4: YOU MUST TRACK THE CHARACTER'S STATUS. If the character's HP, Gold, or Inventory changes, you MUST append a JSON block to the end of your response like this:
+    << <UPDATE { "hp": 15, "gp": 50, "inventory": "Sword, Shield, Rations"
+    }>>>
+        Only include fields that changed. "inventory" should be the FULL updated list string.
     
-    Current Campaign: ${campaign.name}
-    ${characterContext}
+    Current Campaign: ${ campaign.name }
+    ${ characterContext }
     
-    ${campaign.context ? `\n\nCAMPAIGN KNOWLEDGE BASE (STRICT ADHERENCE REQUIRED):\n${campaign.context.substring(0, 20000)}` : ''}
+    ${ campaign.context ? `\n\nCAMPAIGN KNOWLEDGE BASE (STRICT ADHERENCE REQUIRED):\n${campaign.context.substring(0, 20000)}` : '' }
 
-    ${campaign.customInstructions ? `\nCUSTOM INSTRUCTIONS:\n${campaign.customInstructions.substring(0, 1000)}` : ''}`;
+    ${ campaign.customInstructions ? `\nCUSTOM INSTRUCTIONS:\n${campaign.customInstructions.substring(0, 1000)}` : '' } `;
 
         const messages = campaign.messages.map(m => ({
             role: m.role,
@@ -133,6 +133,7 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
 
         const activeModel = campaign.aiModel || "claude-haiku-4-5-20251001";
         let response;
+        let aiText = "";
 
         try {
             response = await anthropic.messages.create({
@@ -141,9 +142,10 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
                 system: systemPrompt,
                 messages: messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
             });
+            aiText = response.content[0].text;
         } catch (initialError) {
-            // Fallback to Haiku 4.5 if the chosen model fails
-            console.warn(`Model ${activeModel} failed. Attempting fallback to Haiku 4.5.`);
+            // Fallback
+            console.warn(`Model ${ activeModel } failed.Attempting fallback.`);
             if (activeModel !== "claude-haiku-4-5-20251001") {
                 response = await anthropic.messages.create({
                     model: "claude-haiku-4-5-20251001",
@@ -151,23 +153,61 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
                     system: systemPrompt,
                     messages: messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
                 });
+                aiText = response.content[0].text;
             } else {
                 throw initialError;
             }
         }
 
-        const aiText = response.content[0].text;
+        // --- STATE SYNCHRONIZATION LOGIC ---
+        let updatedCharacter = null;
+        let finalContent = aiText;
+
+        const updateRegex = /<<<UPDATE\s*(\{.*?\})\s*>>>/s;
+        const match = aiText.match(updateRegex);
+
+        if (match && campaign.character) {
+            try {
+                const updates = JSON.parse(match[1]);
+                console.log("Applying AI Character Updates:", updates);
+
+                // Filter for allowed fields to prevent injection of garbage
+                const allowedFields = ['hp', 'maxHp', 'ac', 'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma', 'pp', 'gp', 'ep', 'sp', 'cp', 'inventory', 'level', 'experience'];
+                const cleanUpdates = {};
+                
+                Object.keys(updates).forEach(key => {
+                    if (allowedFields.includes(key)) {
+                        cleanUpdates[key] = updates[key];
+                    }
+                });
+
+                if (Object.keys(cleanUpdates).length > 0) {
+                     updatedCharacter = await prisma.character.update({
+                        where: { id: campaign.character.id },
+                        data: cleanUpdates
+                    });
+                }
+                
+                // Remove the technical JSON from the chat log
+                finalContent = aiText.replace(updateRegex, '').trim();
+
+            } catch (parseErr) {
+                console.error("Failed to parse AI update block:", parseErr);
+                // We don't fail the request, just ignore the bad update
+            }
+        }
 
         // Save AI Response
         const aiMessage = await prisma.message.create({
             data: {
                 role: 'assistant',
-                content: aiText,
+                content: finalContent,
                 campaignId: id,
             },
         });
 
-        res.json(aiMessage);
+        // Return both message and updated character (if any)
+        res.json({ message: aiMessage, character: updatedCharacter });
 
     } catch (error) {
         console.error("Anthropic API Error Details:", JSON.stringify(error, null, 2));

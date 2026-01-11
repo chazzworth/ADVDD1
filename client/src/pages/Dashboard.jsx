@@ -34,6 +34,7 @@ export default function Dashboard() {
     const [selectedChar, setSelectedChar] = useState('');
     const [selectedModel, setSelectedModel] = useState('claude-haiku-4-5-20251001');
     const [customInstructions, setCustomInstructions] = useState('');
+    const [pdfFile, setPdfFile] = useState(null);
     const [creating, setCreating] = useState(false);
     const location = useLocation();
 
@@ -77,9 +78,26 @@ export default function Dashboard() {
                 characterId: selectedChar || null,
                 customInstructions: customInstructions
             });
+
+            // Upload PDF if present
+            if (pdfFile) {
+                const formData = new FormData();
+                formData.append('pdf', pdfFile);
+                try {
+                    await api.post(`/context/upload/${res.data.id}`, formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                    console.log("PDF Context Uploaded");
+                } catch (uploadErr) {
+                    console.error("PDF Upload Failed", uploadErr);
+                    alert("Campaign created, but PDF failed to upload.");
+                }
+            }
+
             setCampaigns([res.data, ...campaigns]);
             setNewCampaignName('');
             setCustomInstructions('');
+            setPdfFile(null);
         } catch (error) {
             console.error("Failed to create campaign", error);
         } finally {
@@ -163,6 +181,25 @@ export default function Dashboard() {
                                 value={customInstructions}
                                 onChange={(e) => setCustomInstructions(e.target.value)}
                             />
+                        </div>
+
+                        <div className="md:col-span-4 mt-2">
+                            <label className="block text-xs text-zinc-400 mb-1">Campaign Knowledge Base (PDF)</label>
+                            <div className="relative">
+                                <input
+                                    type="file"
+                                    accept=".pdf"
+                                    onChange={(e) => setPdfFile(e.target.files[0])}
+                                    className="block w-full text-sm text-zinc-400
+                                      file:mr-4 file:py-2 file:px-4
+                                      file:rounded file:border-0
+                                      file:text-sm file:font-semibold
+                                      file:bg-zinc-800 file:text-zinc-300
+                                      hover:file:bg-zinc-700
+                                      cursor-pointer"
+                                />
+                                <p className="text-[10px] text-zinc-600 mt-1">Upload a rulebook or module (max 5MB). The DM will cite this.</p>
+                            </div>
                         </div>
 
                         <div className="md:col-span-4 flex justify-end mt-2">
