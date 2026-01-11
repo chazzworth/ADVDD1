@@ -64,6 +64,32 @@ export default function GameSession() {
         }
     };
 
+    const handleRoll = async (diceType) => {
+        if (sending) return;
+
+        const sides = parseInt(diceType.substring(1));
+        const result = Math.floor(Math.random() * sides) + 1;
+        const rollMessage = `*Rolls ${diceType}... Result: ${result}*`;
+
+        // Optimistic Update
+        const userMsg = { role: 'user', content: rollMessage, createdAt: new Date().toISOString() };
+        setMessages(prev => [...prev, userMsg]);
+        setSending(true);
+
+        try {
+            const res = await api.post(`/game/campaigns/${id}/message`, {
+                content: rollMessage,
+                apiKey: apiKey
+            });
+            setMessages(prev => [...prev, res.data]);
+        } catch (error) {
+            console.error("Failed to send roll", error);
+            setMessages(prev => [...prev, { role: 'system', content: "Error: Failed to send roll to DM." }]);
+        } finally {
+            setSending(false);
+        }
+    };
+
     if (loading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Summoning the DM...</div>;
 
     return (
@@ -162,7 +188,12 @@ export default function GameSession() {
                         </h3>
                         <div className="grid grid-cols-3 gap-2">
                             {['d4', 'd6', 'd8', 'd10', 'd12', 'd20'].map(d => (
-                                <button key={d} className="bg-zinc-800 hover:bg-zinc-700 py-1 rounded text-xs font-mono transition-colors">
+                                <button
+                                    key={d}
+                                    onClick={() => handleRoll(d)}
+                                    disabled={sending}
+                                    className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 py-1 rounded text-xs font-mono transition-colors"
+                                >
                                     {d}
                                 </button>
                             ))}
