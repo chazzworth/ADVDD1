@@ -183,48 +183,44 @@ export default function Dashboard() {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {campaigns.map(campaign => (
-                            {
-                                campaigns.map(campaign => (
-                                    <div key={campaign.id} className="group relative block h-full">
-                                        <Link to={`/game/${campaign.id}`} className="block h-full">
-                                            <div className="bg-zinc-900 border border-zinc-800 hover:border-red-500/50 hover:bg-zinc-800/80 rounded-xl p-6 transition-all h-full flex flex-col relative overflow-hidden">
-                                                <div className="absolute top-0 right-0 p-4 opacity-50 flex gap-2">
-                                                    {/* Scroll icon only here, delete button moved out */}
-                                                    <Scroll className="w-12 h-12 text-zinc-800 group-hover:text-red-900/30 transition-colors pointer-events-none" />
+                            <div key={campaign.id} className="group relative block h-full">
+                                <Link to={`/game/${campaign.id}`} className="block h-full">
+                                    <div className="bg-zinc-900 border border-zinc-800 hover:border-red-500/50 hover:bg-zinc-800/80 rounded-xl p-6 transition-all h-full flex flex-col relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 opacity-50 flex gap-2">
+                                            {/* Scroll icon only here, delete button moved out */}
+                                            <Scroll className="w-12 h-12 text-zinc-800 group-hover:text-red-900/30 transition-colors pointer-events-none" />
+                                        </div>
+
+                                        <h3 className="text-xl font-bold text-zinc-100 group-hover:text-red-400 transition-colors mb-1 z-10">{campaign.name}</h3>
+                                        <p className="text-xs text-zinc-500 mb-4 font-mono z-10">{new Date(campaign.createdAt).toLocaleDateString()}</p>
+
+                                        <div className="mt-auto space-y-2 z-10">
+                                            {campaign.character ? (
+                                                <div className="inline-block bg-zinc-800 px-3 py-1 rounded text-xs text-zinc-300 border border-zinc-700">
+                                                    Playing as <span className="text-red-400 font-semibold">{campaign.character.name}</span>
                                                 </div>
-
-                                                <h3 className="text-xl font-bold text-zinc-100 group-hover:text-red-400 transition-colors mb-1 z-10">{campaign.name}</h3>
-                                                <p className="text-xs text-zinc-500 mb-4 font-mono z-10">{new Date(campaign.createdAt).toLocaleDateString()}</p>
-
-                                                <div className="mt-auto space-y-2 z-10">
-                                                    {campaign.character ? (
-                                                        <div className="inline-block bg-zinc-800 px-3 py-1 rounded text-xs text-zinc-300 border border-zinc-700">
-                                                            Playing as <span className="text-red-400 font-semibold">{campaign.character.name}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="inline-block bg-zinc-800/50 px-3 py-1 rounded text-xs text-zinc-500 border border-zinc-800">
-                                                            Freeform Mode
-                                                        </div>
-                                                    )}
-
-                                                    <div className="flex items-center gap-2 text-[10px] text-zinc-600 uppercase tracking-wider">
-                                                        <div className={`w-2 h-2 rounded-full ${campaign.aiModel.includes('sonnet') ? 'bg-purple-500' : campaign.aiModel.includes('opus') ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                                                        {campaign.aiModel.split('-')[2] || 'AI'}
-                                                    </div>
+                                            ) : (
+                                                <div className="inline-block bg-zinc-800/50 px-3 py-1 rounded text-xs text-zinc-500 border border-zinc-800">
+                                                    Freeform Mode
                                                 </div>
+                                            )}
+
+                                            <div className="flex items-center gap-2 text-[10px] text-zinc-600 uppercase tracking-wider">
+                                                <div className={`w-2 h-2 rounded-full ${campaign.aiModel.includes('sonnet') ? 'bg-purple-500' : campaign.aiModel.includes('opus') ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                                                {campaign.aiModel.split('-')[2] || 'AI'}
                                             </div>
-                                        </Link>
-                                        <button
-                                            onClick={(e) => handleDelete(e, campaign.id)}
-                                            disabled={deleting === campaign.id}
-                                            className="absolute top-6 right-6 z-20 hover:text-red-500 text-zinc-500 transition-colors bg-zinc-900/50 p-1.5 rounded-full hover:bg-zinc-800"
-                                            title="Delete Campaign"
-                                        >
-                                            {deleting === campaign.id ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                        </button>
+                                        </div>
                                     </div>
-                                ))
-                            }
+                                </Link>
+                                <button
+                                    onClick={(e) => handleDelete(e, campaign.id)}
+                                    disabled={deleting === campaign.id}
+                                    className="absolute top-6 right-6 z-20 hover:text-red-500 text-zinc-500 transition-colors bg-zinc-900/50 p-1.5 rounded-full hover:bg-zinc-800"
+                                    title="Delete Campaign"
+                                >
+                                    {deleting === campaign.id ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                </button>
+                            </div>
                         ))}
 
                         {campaigns.length === 0 && (
