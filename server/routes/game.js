@@ -173,4 +173,33 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
     }
 });
 
+// Delete a campaign
+router.delete('/campaigns/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const campaign = await prisma.campaign.findUnique({
+            where: { id }
+        });
+
+        if (!campaign || campaign.userId !== req.user.userId) {
+            return res.status(404).json({ error: 'Campaign not found or unauthorized' });
+        }
+
+        // Manually cascade delete messages
+        await prisma.message.deleteMany({
+            where: { campaignId: id }
+        });
+
+        // Delete campaign
+        await prisma.campaign.delete({
+            where: { id }
+        });
+
+        res.json({ message: 'Campaign deleted successfully' });
+    } catch (error) {
+        console.error("Delete Error:", error);
+        res.status(500).json({ error: 'Failed to delete campaign' });
+    }
+});
+
 module.exports = router;

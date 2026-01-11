@@ -2,9 +2,30 @@ import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, Scroll, LogOut, Loader, Gamepad2 } from 'lucide-react';
+import { Plus, Scroll, LogOut, Loader, Gamepad2, Trash2 } from 'lucide-react';
 
 export default function Dashboard() {
+    // ... (existing state)
+    const [deleting, setDeleting] = useState(null);
+
+    // ... (existing useEffect/fetchData)
+
+    const handleDelete = async (e, id) => {
+        e.preventDefault(); // Prevent Link navigation
+        if (!window.confirm("Are you sure you want to delete this campaign? This cannot be undone.")) return;
+
+        setDeleting(id);
+        try {
+            await api.delete(`/game/campaigns/${id}`);
+            setCampaigns(campaigns.filter(c => c.id !== id));
+        } catch (error) {
+            console.error("Failed to delete campaign", error);
+            alert("Failed to delete campaign");
+        } finally {
+            setDeleting(null);
+        }
+    };
+
     const { user, logout } = useAuth();
     const [campaigns, setCampaigns] = useState([]);
     const [characters, setCharacters] = useState([]);
@@ -164,8 +185,16 @@ export default function Dashboard() {
                         {campaigns.map(campaign => (
                             <Link to={`/game/${campaign.id}`} key={campaign.id} className="group block h-full">
                                 <div className="bg-zinc-900 border border-zinc-800 hover:border-red-500/50 hover:bg-zinc-800/80 rounded-xl p-6 transition-all h-full flex flex-col relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-50">
-                                        <Scroll className="w-12 h-12 text-zinc-800 group-hover:text-red-900/30 transition-colors" />
+                                    <div className="absolute top-0 right-0 p-4 opacity-50 flex gap-2">
+                                        <button
+                                            onClick={(e) => handleDelete(e, campaign.id)}
+                                            disabled={deleting === campaign.id}
+                                            className="hover:text-red-500 text-zinc-600 transition-colors z-20"
+                                            title="Delete Campaign"
+                                        >
+                                            {deleting === campaign.id ? <Loader className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                                        </button>
+                                        <Scroll className="w-12 h-12 text-zinc-800 group-hover:text-red-900/30 transition-colors pointer-events-none" />
                                     </div>
 
                                     <h3 className="text-xl font-bold text-zinc-100 group-hover:text-red-400 transition-colors mb-1 z-10">{campaign.name}</h3>
