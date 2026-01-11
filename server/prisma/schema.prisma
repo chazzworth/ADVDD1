@@ -61,6 +61,13 @@ model Character {
   wisdom       Int
   charisma     Int
 
+  // Money (Coin Pouch)
+  pp           Int      @default(0) // Platinum
+  gp           Int      @default(0) // Gold
+  ep           Int      @default(0) // Electrum
+  sp           Int      @default(0) // Silver
+  cp           Int      @default(0) // Copper
+
   // Inventory/Notes (simplified for MVP)
   inventory    String?  // JSON string or text
   background   String?

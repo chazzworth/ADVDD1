@@ -230,6 +230,38 @@ export default function Dashboard() {
                         )}
                     </div>
                 )}
+
+                {/* Character Management Section */}
+                <div className="mt-16 border-t border-zinc-900 pt-8">
+                    <h2 className="text-2xl font-bold text-white mb-6">Hall of Heroes</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {characters.map(char => (
+                            <div key={char.id} className="bg-zinc-900 p-4 rounded border border-zinc-800 flex justify-between items-center group">
+                                <div>
+                                    <div className="font-bold text-zinc-200">{char.name}</div>
+                                    <div className="text-xs text-zinc-500">Lvl {char.level} {char.race} {char.class}</div>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        if (!window.confirm(`Retire (delete) ${char.name}?`)) return;
+                                        try {
+                                            await api.delete(`/characters/${char.id}`);
+                                            setCharacters(characters.filter(c => c.id !== char.id));
+                                            // Reset selection if deleted
+                                            if (selectedChar === char.id) setSelectedChar('');
+                                        } catch (err) {
+                                            alert("Failed to delete character");
+                                        }
+                                    }}
+                                    className="text-zinc-600 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-all"
+                                    title="Delete Character"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </main>
         </div>
     );

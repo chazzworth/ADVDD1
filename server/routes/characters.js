@@ -37,6 +37,11 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
     const { name, race, class: charClass, alignment, stats, hp, maxHp, ac, background } = req.body;
 
+    // Default starting money (approx 3d6 x 10 gp for generic start if not provided)
+    // For MVP, we'll just give them 100gp to start if it's missing, or calculate it.
+    // Let's assume standard "poor" adventurer start:
+    const gp = Math.floor(Math.random() * 100) + 50;
+
     try {
         const character = await prisma.character.create({
             data: {
@@ -54,7 +59,8 @@ router.post('/', authenticateToken, async (req, res) => {
                 wisdom: stats.wisdom,
                 charisma: stats.charisma,
                 background: background || '',
-                userId: req.user.userId
+                userId: req.user.userId,
+                gp: gp // Start with some gold!
             }
         });
         res.json(character);
@@ -73,9 +79,16 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Character not found' });
         }
 
+        // Unlink from any campaigns first
+        await prisma.campaign.updateMany({
+            where: { characterId: id },
+            data: { characterId: null }
+        });
+
         await prisma.character.delete({ where: { id } });
         res.json({ message: 'Character deleted' });
     } catch (error) {
+        console.error("Delete Character Error:", error);
         res.status(500).json({ error: 'Failed to delete character' });
     }
 });
