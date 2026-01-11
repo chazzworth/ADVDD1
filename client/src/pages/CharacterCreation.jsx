@@ -99,7 +99,7 @@ export default function CharacterCreation() {
         setLoading(true);
         try {
             const res = await api.post('/characters', charData);
-            navigate('/dashboard', { state: { newCharacterId: res.data.id } });
+            navigate('/', { state: { newCharacterId: res.data.id } });
         } catch (error) {
             console.error(error);
             alert('Failed to create character');
