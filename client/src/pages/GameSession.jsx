@@ -172,6 +172,35 @@ export default function GameSession() {
                                     )}
                                 </div>
                             </div>
+
+                            {/* Coin Pouch */}
+                            <div className="bg-zinc-950/50 p-4 rounded-lg border border-zinc-800">
+                                <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-3 flex items-center gap-2">
+                                    Coin Pouch
+                                </h3>
+                                <div className="grid grid-cols-5 gap-1 bg-zinc-900 p-2 rounded border border-zinc-800">
+                                    <div className="text-center">
+                                        <div className="text-[10px] text-zinc-500 uppercase">PP</div>
+                                        <div className="text-sm font-bold text-zinc-300">{campaign.character.pp || 0}</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-[10px] text-yellow-600 uppercase">GP</div>
+                                        <div className="text-sm font-bold text-yellow-500">{campaign.character.gp || 0}</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-[10px] text-zinc-500 uppercase">EP</div>
+                                        <div className="text-sm font-bold text-zinc-300">{campaign.character.ep || 0}</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-[10px] text-zinc-400 uppercase">SP</div>
+                                        <div className="text-sm font-bold text-zinc-300">{campaign.character.sp || 0}</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-[10px] text-orange-700 uppercase">CP</div>
+                                        <div className="text-sm font-bold text-orange-600">{campaign.character.cp || 0}</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -203,7 +232,7 @@ export default function GameSession() {
 
                 <div className="p-4 border-t border-zinc-800">
                     <div className="flex justify-between items-center text-xs text-zinc-600">
-                        <span>v1.2.0</span>
+                        <span>v1.3.0</span>
                         <span>Powered by Claude 4.5</span>
                     </div>
                 </div>
@@ -212,7 +241,7 @@ export default function GameSession() {
             {/* Main Chat Area */}
             <main className="flex-1 flex flex-col min-w-0 relative">
                 <div className="absolute top-4 right-4 text-xs text-zinc-600 font-mono z-20 select-none pointer-events-none">
-                    v1.2.0
+                    v1.3.0
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
                     {messages.length === 0 && (
