@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Existing models (updated)
+
+model User {
+  id        String      @id @default(uuid())
+  email     String      @unique
+  password  String
+  createdAt DateTime    @default(now())
+  campaigns Campaign[]
+  characters Character[]
+}
+
+model Campaign {
+  id          String    @id @default(uuid())
+  name        String
+  system      String    @default("AD&D 1e")
+  aiModel     String    @default("claude-3-haiku-20240307") // Model selection
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  characterId String?
+  character   Character? @relation(fields: [characterId], references: [id])
+  createdAt   DateTime  @default(now())
+  messages    Message[]
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  role       String
+  content    String
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+model Character {
+  id        String   @id @default(uuid())
+  name      String
+  race      String
+  class     String
+  alignment String
+  level     Int      @default(1)
+  experience Int     @default(0)
+  hp        Int
+  maxHp     Int
+  ac        Int      @default(10)
+  
+  // Ability Scores
+  strength     Int
+  dexterity    Int
+  constitution Int
+  intelligence Int
+  wisdom       Int
+  charisma     Int
+
+  // Inventory/Notes (simplified for MVP)
+  inventory    String?  // JSON string or text
+  background   String?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  campaigns Campaign[] // A character can be used in multiple campaigns (or one at a time, but history is kept in campaign)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
