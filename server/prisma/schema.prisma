@@ -27,6 +27,7 @@ model Campaign {
   user        User      @relation(fields: [userId], references: [id])
   characterId String?
   character   Character? @relation(fields: [characterId], references: [id])
+  customInstructions String? // Optional custom instructions
   createdAt   DateTime  @default(now())
   messages    Message[]
 }

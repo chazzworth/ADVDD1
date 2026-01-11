@@ -20,7 +20,7 @@ router.get('/campaigns', authenticateToken, async (req, res) => {
 
 // Create new campaign
 router.post('/campaigns', authenticateToken, async (req, res) => {
-    const { name, system, aiModel, characterId } = req.body;
+    const { name, system, aiModel, characterId, customInstructions } = req.body;
     try {
         const campaign = await prisma.campaign.create({
             data: {
@@ -28,7 +28,8 @@ router.post('/campaigns', authenticateToken, async (req, res) => {
                 system: system || 'AD&D 1e',
                 aiModel: aiModel || 'claude-haiku-4-5-20251001',
                 userId: req.user.userId,
-                characterId: characterId || null
+                characterId: characterId || null,
+                customInstructions: customInstructions || null
             },
         });
 
@@ -39,6 +40,8 @@ router.post('/campaigns', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to create campaign', details: error.message });
     }
 });
+
+
 
 // Get campaign details and messages
 router.get('/campaigns/:id', authenticateToken, async (req, res) => {
@@ -104,7 +107,8 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
     Setting: World of Greyhawk or as specified. 
     Rule: Be descriptive, fair, and track stats implicitly.
     Current Campaign: ${campaign.name}
-    ${characterContext}`;
+    ${characterContext}
+    ${campaign.customInstructions ? `\nCUSTOM INSTRUCTIONS:\n${campaign.customInstructions.substring(0, 1000)}` : ''}`;
 
         const messages = campaign.messages.map(m => ({
             role: m.role,

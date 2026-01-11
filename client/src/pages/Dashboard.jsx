@@ -12,6 +12,7 @@ export default function Dashboard() {
     const [newCampaignName, setNewCampaignName] = useState('');
     const [selectedChar, setSelectedChar] = useState('');
     const [selectedModel, setSelectedModel] = useState('claude-haiku-4-5-20251001');
+    const [customInstructions, setCustomInstructions] = useState('');
     const [creating, setCreating] = useState(false);
     const location = useLocation();
 
@@ -53,10 +54,12 @@ export default function Dashboard() {
             const res = await api.post('/game/campaigns', {
                 name: newCampaignName,
                 aiModel: selectedModel,
-                characterId: selectedChar || null
+                characterId: selectedChar || null,
+                customInstructions: customInstructions
             });
             setCampaigns([res.data, ...campaigns]);
             setNewCampaignName('');
+            setCustomInstructions('');
         } catch (error) {
             console.error("Failed to create campaign", error);
         } finally {
@@ -130,6 +133,16 @@ export default function Dashboard() {
                                 <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5 (Smart)</option>
                                 <option value="claude-opus-4-5-20251101">Claude Opus 4.5 (Powerful)</option>
                             </select>
+                        </div>
+
+                        <div className="md:col-span-4 mt-2">
+                            <label className="block text-xs text-zinc-400 mb-1">Custom Instructions (Optional)</label>
+                            <textarea
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded px-4 py-2.5 focus:outline-none focus:border-red-500 transition-colors text-zinc-300 text-sm h-20 resize-none"
+                                placeholder="E.g. It is a rainy night in Waterdeep. The mood is tense..."
+                                value={customInstructions}
+                                onChange={(e) => setCustomInstructions(e.target.value)}
+                            />
                         </div>
 
                         <div className="md:col-span-4 flex justify-end mt-2">
