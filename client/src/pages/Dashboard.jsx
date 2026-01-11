@@ -32,8 +32,7 @@ export default function Dashboard() {
             // Check for redirected character ID
             if (location.state?.newCharacterId) {
                 setSelectedChar(location.state.newCharacterId);
-                // Clear state so refresh doesn't stick
-                window.history.replaceState({}, document.title);
+                // Clearing state safely could be done here, but removing unsafe replaceState for stability
             } else if (charRes.data.length > 0) {
                 // Default select most recent character if exists
                 setSelectedChar(charRes.data[0].id);
