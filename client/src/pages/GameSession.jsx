@@ -39,6 +39,23 @@ export default function GameSession() {
         }
     };
 
+    // Helper for robust API calls
+    const sendWithRetry = async (payload, attempts = 3) => {
+        let lastError;
+        for (let i = 0; i < attempts; i++) {
+            try {
+                return await api.post(`/game/campaigns/${id}/message`, payload);
+            } catch (error) {
+                lastError = error;
+                console.warn(`Attempt ${i + 1} failed. Retrying...`, error);
+                if (i < attempts - 1) {
+                    await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Exponential-ish backoff: 1s, 2s
+                }
+            }
+        }
+        throw lastError;
+    };
+
     const handleSend = async (e) => {
         e.preventDefault();
         if (!input.trim() || sending) return;
@@ -50,10 +67,11 @@ export default function GameSession() {
         setSending(true);
 
         try {
-            const res = await api.post(`/game/campaigns/${id}/message`, {
+            const res = await sendWithRetry({
                 content: userMsg.content,
                 apiKey: apiKey
             });
+
             // Handle new response format { message, character? }
             const { message, character } = res.data;
 
@@ -68,7 +86,7 @@ export default function GameSession() {
 
         } catch (error) {
             console.error("Failed to send message", error);
-            setMessages(prev => [...prev, { role: 'system', content: "Error: The Dungeon Master is silent (Failed to connect). Check API Key." }]);
+            setMessages(prev => [...prev, { role: 'system', content: "Error: The Dungeon Master is silent (Failed to connect after 3 attempts). Check connection or API Key." }]);
         } finally {
             setSending(false);
         }
@@ -87,7 +105,7 @@ export default function GameSession() {
         setSending(true);
 
         try {
-            const res = await api.post(`/game/campaigns/${id}/message`, {
+            const res = await sendWithRetry({
                 content: rollMessage,
                 apiKey: apiKey
             });
@@ -102,7 +120,7 @@ export default function GameSession() {
             }
         } catch (error) {
             console.error("Failed to send roll", error);
-            setMessages(prev => [...prev, { role: 'system', content: "Error: Failed to send roll to DM." }]);
+            setMessages(prev => [...prev, { role: 'system', content: "Error: Failed to send roll to DM (Retry failed). Please roll again." }]);
         } finally {
             setSending(false);
         }
