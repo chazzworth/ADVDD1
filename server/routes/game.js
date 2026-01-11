@@ -103,18 +103,21 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
             characterContext = `\nPLAYER CHARACTER:\nName: ${c.name}\nRace: ${c.race}\nClass: ${c.class}\nLevel: ${c.level}\nHP: ${c.hp}/${c.maxHp}\nAC: ${c.ac}\nStats: STR ${c.strength}, DEX ${c.dexterity}, CON ${c.constitution}, INT ${c.intelligence}, WIS ${c.wisdom}, CHA ${c.charisma}\nAlignment: ${c.alignment}`;
         }
 
-    Rule 3: Adhere strictly to the provided PDF Context(if any) for lore and rules.
-            Rule 4: YOU MUST TRACK THE CHARACTER'S STATUS. If the character's HP, Gold, or Inventory changes, you MUST append a JSON block to the end of your response like this:
-    << <UPDATE { "hp": 15, "gp": 50, "inventory": "Sword, Shield, Rations"
-    }>>>
-        Only include fields that changed. "inventory" should be the FULL updated list string.
+        const systemPrompt = `You are a BRUTAL, IMPARTIAL Dungeon Master running a solo campaign for a player using ${campaign.system} rules. 
+    Setting: World of Greyhawk or as specified. 
+    Rule 1: Be descriptive but DO NOT PANDER. You are a referee, not a fan.
+    Rule 2: Dice results are LAW. Do not fudge rolls to save the character. Death is part of the game.
+    Rule 3: Adhere strictly to the provided PDF Context (if any) for lore and rules.
+    Rule 4: YOU MUST TRACK THE CHARACTER'S STATUS. If the character's HP, Gold, or Inventory changes, you MUST append a JSON block to the end of your response like this:
+    <<<UPDATE { "hp": 15, "gp": 50, "inventory": "Sword, Shield, Rations" }>>>
+    Only include fields that changed. "inventory" should be the FULL updated list string.
     
-    Current Campaign: ${ campaign.name }
-    ${ characterContext }
+    Current Campaign: ${campaign.name}
+    ${characterContext}
     
-    ${ campaign.context ? `\n\nCAMPAIGN KNOWLEDGE BASE (STRICT ADHERENCE REQUIRED):\n${campaign.context.substring(0, 20000)}` : '' }
+    ${campaign.context ? `\n\nCAMPAIGN KNOWLEDGE BASE (STRICT ADHERENCE REQUIRED):\n${campaign.context.substring(0, 20000)}` : ''}
 
-    ${ campaign.customInstructions ? `\nCUSTOM INSTRUCTIONS:\n${campaign.customInstructions.substring(0, 1000)}` : '' } `;
+    ${campaign.customInstructions ? `\nCUSTOM INSTRUCTIONS:\n${campaign.customInstructions.substring(0, 1000)}` : ''}`;
 
         const messages = campaign.messages.map(m => ({
             role: m.role,
@@ -145,7 +148,7 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
             aiText = response.content[0].text;
         } catch (initialError) {
             // Fallback
-            console.warn(`Model ${ activeModel } failed.Attempting fallback.`);
+            console.warn(`Model ${activeModel} failed.Attempting fallback.`);
             if (activeModel !== "claude-haiku-4-5-20251001") {
                 response = await anthropic.messages.create({
                     model: "claude-haiku-4-5-20251001",
@@ -174,7 +177,7 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
                 // Filter for allowed fields to prevent injection of garbage
                 const allowedFields = ['hp', 'maxHp', 'ac', 'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma', 'pp', 'gp', 'ep', 'sp', 'cp', 'inventory', 'level', 'experience'];
                 const cleanUpdates = {};
-                
+
                 Object.keys(updates).forEach(key => {
                     if (allowedFields.includes(key)) {
                         cleanUpdates[key] = updates[key];
@@ -182,12 +185,12 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
                 });
 
                 if (Object.keys(cleanUpdates).length > 0) {
-                     updatedCharacter = await prisma.character.update({
+                    updatedCharacter = await prisma.character.update({
                         where: { id: campaign.character.id },
                         data: cleanUpdates
                     });
                 }
-                
+
                 // Remove the technical JSON from the chat log
                 finalContent = aiText.replace(updateRegex, '').trim();
 
