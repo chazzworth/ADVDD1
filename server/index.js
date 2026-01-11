@@ -28,7 +28,7 @@ const path = require('path');
 if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../client/dist')));
 
-    app.get('(.*)', (req, res) => {
+    app.get(/.*/, (req, res) => {
         // Don't intercept API routes
         if (req.path.startsWith('/api')) {
             return res.status(404).json({ error: 'API route not found' });
