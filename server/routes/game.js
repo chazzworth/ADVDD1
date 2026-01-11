@@ -111,6 +111,9 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
     Rule 4: YOU MUST TRACK THE CHARACTER'S STATUS. If the character's HP, Gold, or Inventory changes, you MUST append a JSON block to the end of your response like this:
     <<<UPDATE { "hp": 15, "gp": 50, "inventory": "Sword, Shield, Rations" }>>>
     Only include fields that changed. "inventory" should be the FULL updated list string.
+    Rule 5: IF YOU NEED TO ROLL DICE (e.g., for an NPC attack or random event), you must output a tag like this:
+    <<<ROLL d20>>> or <<<ROLL d6>>>
+    The system will roll for you and insert the result. Do not invent the number yourself.
     
     Current Campaign: ${campaign.name}
     ${characterContext}
@@ -148,15 +151,15 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
             aiText = response.content[0].text;
         } catch (initialError) {
             // Fallback
-            console.warn(`Model ${activeModel} failed.Attempting fallback.`);
+            console.warn(`Model ${activeModel} failed. Attempting fallback.`);
             if (activeModel !== "claude-haiku-4-5-20251001") {
-                response = await anthropic.messages.create({
+                const fallback = await anthropic.messages.create({
                     model: "claude-haiku-4-5-20251001",
                     max_tokens: 1024,
                     system: systemPrompt,
                     messages: messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
                 });
-                aiText = response.content[0].text;
+                aiText = fallback.content[0].text;
             } else {
                 throw initialError;
             }
@@ -166,8 +169,16 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
         let updatedCharacter = null;
         let finalContent = aiText;
 
+        // 1. Intercept DM Rolls
+        const rollRegex = /<<<ROLL d(\d+)>>>/g;
+        finalContent = finalContent.replace(rollRegex, (match, sides) => {
+            const result = Math.floor(Math.random() * parseInt(sides)) + 1;
+            return `(Rolled d${sides}: ${result})`;
+        });
+
+        // 2. Intercept State Updates
         const updateRegex = /<<<UPDATE\s*(\{.*?\})\s*>>>/s;
-        const match = aiText.match(updateRegex);
+        const match = finalContent.match(updateRegex);
 
         if (match && campaign.character) {
             try {
@@ -192,7 +203,7 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
                 }
 
                 // Remove the technical JSON from the chat log
-                finalContent = aiText.replace(updateRegex, '').trim();
+                finalContent = finalContent.replace(updateRegex, '').trim();
 
             } catch (parseErr) {
                 console.error("Failed to parse AI update block:", parseErr);
@@ -248,6 +259,161 @@ router.delete('/campaigns/:id', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error("Delete Error:", error);
         res.status(500).json({ error: 'Failed to delete campaign' });
+    }
+});
+
+// Server-side Roll Endpoint (User)
+router.post('/campaigns/:id/roll', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { diceType } = req.body; // e.g., "d20"
+
+    if (!diceType) return res.status(400).json({ error: 'Dice type required' });
+
+    try {
+        const campaign = await prisma.campaign.findUnique({
+            where: { id },
+            include: { character: true } // context for potential updates (not used yet but good practice)
+        });
+
+        if (!campaign || campaign.userId !== req.user.userId) {
+            return res.status(404).json({ error: 'Campaign not found' });
+        }
+
+        const sides = parseInt(diceType.substring(1));
+        if (isNaN(sides)) return res.status(400).json({ error: 'Invalid dice type' });
+
+        const result = Math.floor(Math.random() * sides) + 1;
+        const content = `*Rolls ${diceType}... Result: ${result}*`;
+
+        // Save Roll Message
+        const message = await prisma.message.create({
+            data: {
+                role: 'user',
+                content,
+                campaignId: id,
+            },
+        });
+
+        // Trigger AI response? 
+        // Usually a roll is followed by AI reaction. 
+        // For now, just return the roll. The frontend might trigger the AI response?
+        // Actually, usually users want the DM to react to the roll immediately if it's part of the flow.
+        // But let's keep it simple: Client rolls, gets result, then maybe Client sends "I attack" or the Client automatically triggers a "reaction" request?
+        // Current flow in FE: handleRoll just sends a message. The AI *does* reply to messages normally.
+        // But `handleRoll` in FE usually just pushed a user message.
+        // To keep behavior consistent: The `/roll` endpoint should probably *just* record the roll. 
+        // If the user wants the AI to react, they usually send text with it or we trigger it.
+        // Wait, `handleRoll` in FE currently sends a message to `/message`. That endpoint *triggers* the AI.
+        // If I make a separate `/roll` endpoint, does it trigger the AI?
+        // If I want the DM to react to the result, I should probably trigger the AI here too?
+        // Let's make `/roll` behave like a "User Message" that *also* triggers the AI?
+        // Actually, usually rolls are "actions".
+        // Let's START by just logging the roll. The user can then type "I hit AC 15".
+        // OR better: The user rolls, and we immediately pass that context to the AI.
+        // Let's stick to the current FE pattern: The FE calls `/message` to "send" the roll.
+        // BUT we want server-side RNG.
+        // So `/roll` should return the message, and then the FE might call `/message`? No that's double.
+        // Let's make `/roll` ALMOST identical to `/message` but it generates the content itself.
+        // AND it triggers the AI response. Yes. That makes the most sense for "I roll to attack".
+
+        // Prepare context for Claude (React to the roll)
+        let characterContext = "";
+        if (campaign.character) {
+            const c = campaign.character;
+            characterContext = `\nPLAYER CHARACTER:\nName: ${c.name}\nRace: ${c.race}\nClass: ${c.class}\nLevel: ${c.level}\nHP: ${c.hp}/${c.maxHp}\nAC: ${c.ac}\nStats: STR ${c.strength}, DEX ${c.dexterity}, CON ${c.constitution}, INT ${c.intelligence}, WIS ${c.wisdom}, CHA ${c.charisma}\nAlignment: ${c.alignment}`;
+        }
+
+        const systemPrompt = `You are a BRUTAL, IMPARTIAL Dungeon Master running a solo campaign for a player using ${campaign.system} rules. 
+    Setting: World of Greyhawk or as specified. 
+    Rule 1: Be descriptive but DO NOT PANDER. You are a referee, not a fan.
+    Rule 2: Dice results are LAW. The player just rolled a ${diceType} and got ${result}. React to this.
+    Rule 3: Adhere strictly to the provided PDF Context (if any) for lore and rules.
+    Rule 4: YOU MUST TRACK THE CHARACTER'S STATUS. If the character's HP, Gold, or Inventory changes, you MUST append a JSON block to the end of your response like this:
+    <<<UPDATE { "hp": 15, "gp": 50, "inventory": "Sword, Shield, Rations" }>>>
+    Only include fields that changed. "inventory" should be the FULL updated list string.
+
+    Current Campaign: ${campaign.name}
+    ${characterContext}
+    
+    ${campaign.context ? `\n\nCAMPAIGN KNOWLEDGE BASE (STRICT ADHERENCE REQUIRED):\n${campaign.context.substring(0, 20000)}` : ''}
+
+    ${campaign.customInstructions ? `\nCUSTOM INSTRUCTIONS:\n${campaign.customInstructions.substring(0, 1000)}` : ''}`;
+
+        // Get recent messages for context
+        const recentMessages = await prisma.message.findMany({
+            where: { campaignId: id },
+            orderBy: { createdAt: 'asc' }, // Oldest first
+            take: 10 // Limit context window
+        });
+
+        const conversation = recentMessages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }));
+        conversation.push({ role: 'user', content }); // Add the roll message
+
+        const key = process.env.ANTHROPIC_API_KEY; // Use server key
+        // NOTE: If using client-provided key in body, need to pass it here. 
+        // For /roll, let's assume Env key or req.body.apiKey if we want to support that.
+        const apiKeyToUse = req.body.apiKey || key;
+
+        let aiMessage = null;
+        let updatedCharacter = null;
+
+        if (apiKeyToUse) {
+            const anthropic = new Anthropic({ apiKey: apiKeyToUse });
+            const activeModel = campaign.aiModel || "claude-haiku-4-5-20251001";
+
+            let aiText = "";
+            try {
+                const response = await anthropic.messages.create({
+                    model: activeModel,
+                    max_tokens: 1024,
+                    system: systemPrompt,
+                    messages: conversation
+                });
+                aiText = response.content[0].text;
+            } catch (err) {
+                console.warn("AI Generation failed on roll", err);
+                // Fallback? just don't return AI message
+            }
+
+            if (aiText) {
+                // Parse Updates
+                let finalContent = aiText;
+                const updateRegex = /<<<UPDATE\s*(\{.*?\})\s*>>>/s;
+                const match = aiText.match(updateRegex);
+
+                if (match && campaign.character) {
+                    try {
+                        const updates = JSON.parse(match[1]);
+                        const allowedFields = ['hp', 'maxHp', 'ac', 'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma', 'pp', 'gp', 'ep', 'sp', 'cp', 'inventory', 'level', 'experience'];
+                        const cleanUpdates = {};
+                        Object.keys(updates).forEach(key => {
+                            if (allowedFields.includes(key)) cleanUpdates[key] = updates[key];
+                        });
+                        if (Object.keys(cleanUpdates).length > 0) {
+                            updatedCharacter = await prisma.character.update({
+                                where: { id: campaign.character.id },
+                                data: cleanUpdates
+                            });
+                        }
+                        finalContent = aiText.replace(updateRegex, '').trim();
+                    } catch (e) { }
+                }
+
+                aiMessage = await prisma.message.create({
+                    data: { role: 'assistant', content: finalContent, campaignId: id }
+                });
+            }
+        }
+
+        res.json({
+            userMessage: message,
+            aiMessage: aiMessage,
+            character: updatedCharacter
+        });
+
+    } catch (error) {
+        console.error("Roll Error:", error);
+        res.status(500).json({ error: 'Failed to process server roll' });
     }
 });
 
