@@ -103,11 +103,17 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
             characterContext = `\nPLAYER CHARACTER:\nName: ${c.name}\nRace: ${c.race}\nClass: ${c.class}\nLevel: ${c.level}\nHP: ${c.hp}/${c.maxHp}\nAC: ${c.ac}\nStats: STR ${c.strength}, DEX ${c.dexterity}, CON ${c.constitution}, INT ${c.intelligence}, WIS ${c.wisdom}, CHA ${c.charisma}\nAlignment: ${c.alignment}`;
         }
 
-        const systemPrompt = `You are an expert Dungeon Master running a solo campaign for a player using ${campaign.system} rules. 
+        const systemPrompt = `You are a BRUTAL, IMPARTIAL Dungeon Master running a solo campaign for a player using ${campaign.system} rules. 
     Setting: World of Greyhawk or as specified. 
-    Rule: Be descriptive, fair, and track stats implicitly.
+    Rule 1: Be descriptive but DO NOT PANDER. You are a referee, not a fan.
+    Rule 2: Dice results are LAW. Do not fudge rolls to save the character. Death is part of the game.
+    Rule 3: Adhere strictly to the provided PDF Context (if any) for lore and rules.
+    
     Current Campaign: ${campaign.name}
     ${characterContext}
+    
+    ${campaign.context ? `\n\nCAMPAIGN KNOWLEDGE BASE (STRICT ADHERENCE REQUIRED):\n${campaign.context.substring(0, 20000)}` : ''}
+
     ${campaign.customInstructions ? `\nCUSTOM INSTRUCTIONS:\n${campaign.customInstructions.substring(0, 1000)}` : ''}`;
 
         const messages = campaign.messages.map(m => ({
