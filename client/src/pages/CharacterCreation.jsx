@@ -9,15 +9,21 @@ const RACES = [
     { id: 'dwarf', name: 'Dwarf', bonus: '+1 CON, -1 CHA' },
     { id: 'halfling', name: 'Halfling', bonus: '+1 DEX, -1 STR' },
     { id: 'half-elf', name: 'Half-Elf', bonus: 'None' },
+    { id: 'gnome', name: 'Gnome', bonus: 'None (INT bonus often house-ruled in 1e)' },
+    { id: 'half-orc', name: 'Half-Orc', bonus: '+1 STR, +1 CON, -2 CHA' }
 ];
 
 const CLASSES = [
-    { id: 'fighter', name: 'Fighter', icon: Sword, desc: 'A master of martial combat.' },
-    { id: 'magic-user', name: 'Magic-User', icon: Scroll, desc: 'A wielder of arcane magic.' },
-    { id: 'cleric', name: 'Cleric', icon: Shield, desc: 'A divine servant of the gods.' },
-    { id: 'thief', name: 'Thief', icon: User, desc: 'A skilled expert in stealth.' },
-    { id: 'paladin', name: 'Paladin', icon: Shield, desc: 'A holy knight.' },
-    { id: 'ranger', name: 'Ranger', icon: Sword, desc: 'A warrior of the wilderness.' },
+    { id: 'fighter', name: 'Fighter', icon: Sword, desc: 'A master of martial combat (d10 HD).' },
+    { id: 'magic-user', name: 'Magic-User', icon: Scroll, desc: 'A wielder of arcane magic (d4 HD).' },
+    { id: 'cleric', name: 'Cleric', icon: Shield, desc: 'A divine servant of the gods (d8 HD).' },
+    { id: 'thief', name: 'Thief', icon: User, desc: 'A skilled expert in stealth (d6 HD).' },
+    { id: 'paladin', name: 'Paladin', icon: Shield, desc: 'A holy knight (d10 HD). Requires LG, 17 CHA.' },
+    { id: 'ranger', name: 'Ranger', icon: Sword, desc: 'A warrior of the wilderness (2d8 HD at Lvl 1).' },
+    { id: 'druid', name: 'Druid', icon: Scroll, desc: 'A protector of nature (d8 HD). Requires N.' },
+    { id: 'monk', name: 'Monk', icon: User, desc: 'A martial artist (d4 HD). Logic/Dex based.' },
+    { id: 'assassin', name: 'Assassin', icon: Sword, desc: 'A specialist killer (d6 HD). Evil alignment.' },
+    { id: 'illusionist', name: 'Illusionist', icon: Scroll, desc: 'A master of deception (d4 HD). High DEX/INT.' }
 ];
 
 export default function CharacterCreation() {
@@ -36,8 +42,27 @@ export default function CharacterCreation() {
         ac: 10
     });
 
+    const checkRequirements = (newStats, cls, race, align) => {
+        // Simple simplified 1e checks
+        if (cls === 'paladin') {
+            if (align !== 'Lawful Good') return 'Paladins must be Lawful Good.';
+            if (newStats.charisma < 17) return 'Paladins require 17+ CHA.';
+        }
+        if (cls === 'druid' && align !== 'True Neutral') return 'Druids must be True Neutral.';
+        if (cls === 'ranger' && (align.includes('Evil') || align.includes('Chaotic'))) return 'Rangers must be Good.';
+        if (cls === 'assassin' && !align.includes('Evil')) return 'Assassins must be Evil.';
+        if (cls === 'monk' && !align.includes('Lawful')) return 'Monks must be Lawful.';
+
+        // Race restrictions (simplified common 1e)
+        if (race === 'dwarf' && ['magic-user', 'druid', 'paladin', 'ranger', 'monk', 'illusionist'].includes(cls)) return 'Dwarves cannot be this class.';
+        if (race === 'halfling' && ['magic-user', 'cleric', 'paladin', 'ranger', 'monk', 'assassin', 'illusionist'].includes(cls)) return 'Halflings cannot be this class.';
+        if (race === 'gnome' && ['paladin', 'monk', 'druid', 'ranger'].includes(cls)) return 'Gnomes cannot be this class.';
+
+        return null; // OK
+    };
+
     const rollStats = () => {
-        // 3d6 roll for each stat
+        // 3d6 roll for each stat (Strict Method)
         const roll = () => Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
         const newStats = {
             strength: roll(),
@@ -48,12 +73,26 @@ export default function CharacterCreation() {
             charisma: roll(),
         };
 
-        // Auto-calculate HP based on CON/Class (simplified)
-        const classHp = { fighter: 10, paladin: 10, ranger: 8, cleric: 8, thief: 6, 'magic-user': 4 };
-        const conMod = Math.floor((newStats.constitution - 10) / 2);
-        const hp = Math.max(1, (classHp[charData.class] || 8) + conMod);
+        // Don't auto-calculate HP here, we do it after class selection now
+        setCharData({ ...charData, stats: newStats });
+    };
 
-        setCharData({ ...charData, stats: newStats, hp, maxHp: hp });
+    // Recalculate HP when class/stats change
+    const calculateHp = (cls, con) => {
+        let hd = 8;
+        if (['fighter', 'paladin'].includes(cls)) hd = 10;
+        if (['magic-user', 'illusionist'].includes(cls)) hd = 4;
+        if (['thief', 'assassin'].includes(cls)) hd = 6;
+        if (['cleric', 'druid'].includes(cls)) hd = 8;
+        if (cls === 'monk') hd = 4;
+        if (cls === 'ranger') return Math.floor(Math.random() * 8) + 1 + Math.floor(Math.random() * 8) + 1; // 2d8 at lvl 1
+
+        const conMod = con > 14 ? (con - 14) : 0; // Simplified 1e: Only Fighters get > +2, but for MVP basic mod
+        // Actually 1e CON mods are: 15(+1), 16(+2), 17(+3 War/Pal/Ran), 18(+4 War/Pal/Ran)
+        // Let's use a standard d20 mod for everything now to allow playability, or stick to rigid 1e table?
+        // Sticking to "simple" CON mod for MVP to avoid massive lookup tables.
+
+        return Math.floor(Math.random() * hd) + 1 + Math.floor((con - 10) / 2);
     };
 
     const handleCreate = async () => {
@@ -170,17 +209,25 @@ export default function CharacterCreation() {
                             {CLASSES.map(c => {
                                 const Icon = c.icon;
                                 const isSelected = charData.class === c.id;
+                                const error = checkRequirements(charData.stats, c.id, charData.race, charData.alignment);
+
                                 return (
                                     <div
                                         key={c.id}
-                                        onClick={() => setCharData({ ...charData, class: c.id })}
-                                        className={`p-4 rounded border cursor-pointer transition-all ${isSelected ? 'bg-red-900/20 border-red-500' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'}`}
+                                        onClick={() => {
+                                            if (!error) {
+                                                const hp = Math.max(1, calculateHp(c.id, charData.stats.constitution));
+                                                setCharData({ ...charData, class: c.id, hp, maxHp: hp });
+                                            }
+                                        }}
+                                        className={`p-4 rounded border transition-all ${error ? 'opacity-50 cursor-not-allowed bg-zinc-900 border-zinc-800' : 'cursor-pointer'} ${isSelected ? 'bg-red-900/20 border-red-500' : (!error && 'bg-zinc-950 border-zinc-800 hover:border-zinc-700')}`}
                                     >
                                         <div className="flex items-center gap-3 mb-2">
                                             <Icon size={20} className={isSelected ? 'text-red-500' : 'text-zinc-600'} />
                                             <span className={`font-semibold ${isSelected ? 'text-red-400' : 'text-zinc-400'}`}>{c.name}</span>
                                         </div>
                                         <p className="text-xs text-zinc-500">{c.desc}</p>
+                                        {error && <p className="text-[10px] text-red-500 mt-1">{error}</p>}
                                     </div>
                                 )
                             })}
