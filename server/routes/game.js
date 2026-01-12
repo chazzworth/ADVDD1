@@ -103,8 +103,8 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
             characterContext = `\nPLAYER CHARACTER:\nName: ${c.name}\nRace: ${c.race}\nClass: ${c.class}\nLevel: ${c.level}\nHP: ${c.hp}/${c.maxHp}\nAC: ${c.ac}\nStats: STR ${c.strength}, DEX ${c.dexterity}, CON ${c.constitution}, INT ${c.intelligence}, WIS ${c.wisdom}, CHA ${c.charisma}\nAlignment: ${c.alignment}\nInventory: ${c.inventory || "Standard starting gear"}\nCoin Pouch: ${c.pp}pp, ${c.gp}gp, ${c.ep}ep, ${c.sp}sp, ${c.cp}cp`;
         }
 
-        const systemPrompt = `You are a BRUTAL, IMPARTIAL Dungeon Master running a solo campaign for a player using ${campaign.system} rules. 
-    Setting: World of Greyhawk or as specified. 
+        let systemPrompt = `You are a BRUTAL, IMPARTIAL Dungeon Master running a solo campaign for a player using ${campaign.system} rules.
+    Setting: World of Greyhawk or as specified.
     Rule 1: Be descriptive but DO NOT PANDER. You are a referee, not a fan.
     Rule 2: Dice results are LAW. Do not fudge rolls to save the character. Death is part of the game.
     Rule 3: Adhere strictly to the provided PDF Context (if any) for lore and rules.

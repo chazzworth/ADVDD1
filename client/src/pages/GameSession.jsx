@@ -19,6 +19,7 @@ export default function GameSession() {
     // Image Gen State
     const [showImageModal, setShowImageModal] = useState(false);
     const [imageLoading, setImageLoading] = useState(false);
+    const [manualRollMode, setManualRollMode] = useState(true); // Default to Manual Mode as requested
     const [currentImage, setCurrentImage] = useState(null);
     const [currentPrompt, setCurrentPrompt] = useState(null);
 
@@ -76,7 +77,8 @@ export default function GameSession() {
         try {
             const res = await sendWithRetry({
                 content: userMsg.content,
-                apiKey: apiKey
+                apiKey: apiKey,
+                manualMode: manualRollMode
             });
 
             const { message, character } = res.data;
@@ -296,21 +298,43 @@ export default function GameSession() {
                     )}
 
                     <div className="bg-zinc-950/50 p-4 rounded-lg border border-zinc-800">
-                        <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-2 flex items-center gap-2">
-                            <Dices className="w-4 h-4" /> Dice Roller
-                        </h3>
-                        <div className="grid grid-cols-3 gap-2">
-                            {['d4', 'd6', 'd8', 'd10', 'd12', 'd20'].map(d => (
-                                <button
-                                    key={d}
-                                    onClick={() => handleRoll(d)}
-                                    disabled={sending}
-                                    className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 py-1 rounded text-xs font-mono transition-colors"
-                                >
-                                    {d}
-                                </button>
-                            ))}
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold flex items-center gap-2">
+                                <Dices className="w-4 h-4" /> Dice Roller
+                            </h3>
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                                <div className="relative inline-flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={manualRollMode}
+                                        onChange={(e) => setManualRollMode(e.target.checked)}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-9 h-5 bg-zinc-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                                </div>
+                                <span className="text-[10px] text-zinc-500 font-medium group-hover:text-zinc-300 transition-colors">Manual</span>
+                            </label>
                         </div>
+
+                        {!manualRollMode ? (
+                            <div className="grid grid-cols-3 gap-2">
+                                {['d4', 'd6', 'd8', 'd10', 'd12', 'd20'].map(d => (
+                                    <button
+                                        key={d}
+                                        onClick={() => handleRoll(d)}
+                                        disabled={sending}
+                                        className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 py-1 rounded text-xs font-mono transition-colors"
+                                    >
+                                        {d}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-xs text-zinc-500 italic text-center py-2 border border-dashed border-zinc-800 rounded bg-zinc-900/30">
+                                Manual Mode Active<br />
+                                <span className="text-[10px] opacity-70">Roll your own physical dice!</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
