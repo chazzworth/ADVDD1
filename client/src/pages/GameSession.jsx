@@ -1,4 +1,4 @@
-import ImageModal from '../components/ImageModal';
+import ImageModal from '../components/ImageModalNew';
 import { Send, ArrowLeft, Dices, User, Bot, Backpack, Heart, Shield, Zap, Activity, Eye, Image as ImageIcon } from 'lucide-react';
 
 export default function GameSession() {
