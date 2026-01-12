@@ -149,7 +149,8 @@ export default function GameSession() {
                     }
                 } else {
                     console.error("Image Gen Failed", error);
-                    alert("Visualization failed. The magical weave is disrupted.");
+                    const msg = error.response?.data?.error || error.response?.data?.details || error.message;
+                    alert(`Visualization failed: ${msg}`);
                     setShowImageModal(false);
                     setImageLoading(false);
                 }
