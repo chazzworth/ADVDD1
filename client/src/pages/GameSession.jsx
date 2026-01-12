@@ -121,29 +121,39 @@ export default function GameSession() {
     };
 
     const handleVisualize = async () => {
-        let key = apiKey;
-        if (!key) {
-            key = prompt("Please enter your Google API Key for Image Generation (Imagen 3):");
-            if (!key) return;
-            setApiKey(key); // Cache it for session
-        }
-
-        setImageLoading(true);
+        // Optimistically assume server has key or client has cached key
         setShowImageModal(true);
+        setImageLoading(true);
         setCurrentImage(null);
         setCurrentPrompt(null);
 
-        try {
-            const res = await api.post(`/game/campaigns/${id}/image`, { apiKey: key });
-            setCurrentImage(res.data.imageUrl);
-            setCurrentPrompt(res.data.prompt);
-        } catch (error) {
-            console.error("Image Gen Failed", error);
-            alert("Failed to generate image. Check Google API Key.");
-            setShowImageModal(false);
-        } finally {
-            setImageLoading(false);
-        }
+        const tryGenerate = async (keyToUse) => {
+            try {
+                const res = await api.post(`/game/campaigns/${id}/image`, { apiKey: keyToUse });
+                setCurrentImage(res.data.imageUrl);
+                setCurrentPrompt(res.data.prompt);
+                setImageLoading(false);
+            } catch (error) {
+                // If 400 Bad Request (likely missing key), ask user
+                if (error.response && error.response.status === 400 && error.response.data.error.includes("Google API Key")) {
+                    const userKey = prompt("Server Missing Key. Enter Google API Key (Imagen 3):");
+                    if (userKey) {
+                        setApiKey(userKey);
+                        await tryGenerate(userKey); // Recursive retry with new key
+                    } else {
+                        setShowImageModal(false);
+                        setImageLoading(false);
+                    }
+                } else {
+                    console.error("Image Gen Failed", error);
+                    alert("Visualization failed. The magical weave is disrupted.");
+                    setShowImageModal(false);
+                    setImageLoading(false);
+                }
+            }
+        };
+
+        await tryGenerate(apiKey);
     };
 
     if (loading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Summoning the DM...</div>;
