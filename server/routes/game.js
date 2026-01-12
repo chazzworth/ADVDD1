@@ -2,6 +2,7 @@ const express = require('express');
 const authenticateToken = require('../middleware/auth');
 const Anthropic = require('@anthropic-ai/sdk');
 const prisma = require('../prismaClient');
+const axios = require('axios'); // Added for Google Imagen
 
 const router = express.Router();
 
@@ -33,7 +34,6 @@ router.post('/campaigns', authenticateToken, async (req, res) => {
             },
         });
 
-        // Initial system message logic could go here or be dynamic
         res.json(campaign);
     } catch (error) {
         console.error("Campaign Creation Error:", error);
@@ -70,7 +70,7 @@ router.get('/campaigns/:id', authenticateToken, async (req, res) => {
 // Send message (Interact with DM)
 router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { content, apiKey } = req.body; // Expect API key from client for now? Or env?
+    const { content, apiKey } = req.body;
 
     if (!content) return res.status(400).json({ error: 'Content required' });
 
@@ -129,7 +129,6 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
         messages.push({ role: 'user', content });
 
         // Initialize Claude
-        // NOTE: In production, apiKey should be strictly managed. Here we take from body or env.
         const key = apiKey || process.env.ANTHROPIC_API_KEY;
         if (!key) {
             return res.status(500).json({ error: 'Anthropic API Key missing' });
@@ -150,7 +149,6 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
             });
             aiText = response.content[0].text;
         } catch (initialError) {
-            // Fallback
             console.warn(`Model ${activeModel} failed. Attempting fallback.`);
             if (activeModel !== "claude-haiku-4-5-20251001") {
                 const fallback = await anthropic.messages.create({
@@ -185,7 +183,6 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
                 const updates = JSON.parse(match[1]);
                 console.log("Applying AI Character Updates:", updates);
 
-                // Filter for allowed fields to prevent injection of garbage
                 const allowedFields = ['hp', 'maxHp', 'ac', 'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma', 'pp', 'gp', 'ep', 'sp', 'cp', 'inventory', 'level', 'experience'];
                 const cleanUpdates = {};
 
@@ -207,7 +204,6 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
 
             } catch (parseErr) {
                 console.error("Failed to parse AI update block:", parseErr);
-                // We don't fail the request, just ignore the bad update
             }
         }
 
@@ -220,15 +216,10 @@ router.post('/campaigns/:id/message', authenticateToken, async (req, res) => {
             },
         });
 
-        // Return both message and updated character (if any)
         res.json({ message: aiMessage, character: updatedCharacter });
 
     } catch (error) {
         console.error("Anthropic API Error Details:", JSON.stringify(error, null, 2));
-        if (error.response) {
-            console.error("Response Data:", error.response.data);
-            console.error("Response Headers:", error.response.headers);
-        }
         res.status(500).json({ error: 'Failed to process message', details: error.message });
     }
 });
@@ -245,12 +236,10 @@ router.delete('/campaigns/:id', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Campaign not found or unauthorized' });
         }
 
-        // Manually cascade delete messages
         await prisma.message.deleteMany({
             where: { campaignId: id }
         });
 
-        // Delete campaign
         await prisma.campaign.delete({
             where: { id }
         });
@@ -265,14 +254,14 @@ router.delete('/campaigns/:id', authenticateToken, async (req, res) => {
 // Server-side Roll Endpoint (User)
 router.post('/campaigns/:id/roll', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { diceType } = req.body; // e.g., "d20"
+    const { diceType } = req.body;
 
     if (!diceType) return res.status(400).json({ error: 'Dice type required' });
 
     try {
         const campaign = await prisma.campaign.findUnique({
             where: { id },
-            include: { character: true } // context for potential updates (not used yet but good practice)
+            include: { character: true }
         });
 
         if (!campaign || campaign.userId !== req.user.userId) {
@@ -285,38 +274,11 @@ router.post('/campaigns/:id/roll', authenticateToken, async (req, res) => {
         const result = Math.floor(Math.random() * sides) + 1;
         const content = `*Rolls ${diceType}... Result: ${result}*`;
 
-        // Save Roll Message
         const message = await prisma.message.create({
-            data: {
-                role: 'user',
-                content,
-                campaignId: id,
-            },
+            data: { role: 'user', content, campaignId: id, },
         });
 
-        // Trigger AI response? 
-        // Usually a roll is followed by AI reaction. 
-        // For now, just return the roll. The frontend might trigger the AI response?
-        // Actually, usually users want the DM to react to the roll immediately if it's part of the flow.
-        // But let's keep it simple: Client rolls, gets result, then maybe Client sends "I attack" or the Client automatically triggers a "reaction" request?
-        // Current flow in FE: handleRoll just sends a message. The AI *does* reply to messages normally.
-        // But `handleRoll` in FE usually just pushed a user message.
-        // To keep behavior consistent: The `/roll` endpoint should probably *just* record the roll. 
-        // If the user wants the AI to react, they usually send text with it or we trigger it.
-        // Wait, `handleRoll` in FE currently sends a message to `/message`. That endpoint *triggers* the AI.
-        // If I make a separate `/roll` endpoint, does it trigger the AI?
-        // If I want the DM to react to the result, I should probably trigger the AI here too?
-        // Let's make `/roll` behave like a "User Message" that *also* triggers the AI?
-        // Actually, usually rolls are "actions".
-        // Let's START by just logging the roll. The user can then type "I hit AC 15".
-        // OR better: The user rolls, and we immediately pass that context to the AI.
-        // Let's stick to the current FE pattern: The FE calls `/message` to "send" the roll.
-        // BUT we want server-side RNG.
-        // So `/roll` should return the message, and then the FE might call `/message`? No that's double.
-        // Let's make `/roll` ALMOST identical to `/message` but it generates the content itself.
-        // AND it triggers the AI response. Yes. That makes the most sense for "I roll to attack".
-
-        // Prepare context for Claude (React to the roll)
+        // Trigger AI Reaction
         let characterContext = "";
         if (campaign.character) {
             const c = campaign.character;
@@ -339,19 +301,16 @@ router.post('/campaigns/:id/roll', authenticateToken, async (req, res) => {
 
     ${campaign.customInstructions ? `\nCUSTOM INSTRUCTIONS:\n${campaign.customInstructions.substring(0, 1000)}` : ''}`;
 
-        // Get recent messages for context
         const recentMessages = await prisma.message.findMany({
             where: { campaignId: id },
-            orderBy: { createdAt: 'asc' }, // Oldest first
-            take: 10 // Limit context window
+            orderBy: { createdAt: 'asc' },
+            take: 10
         });
 
         const conversation = recentMessages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }));
-        conversation.push({ role: 'user', content }); // Add the roll message
+        conversation.push({ role: 'user', content });
 
-        const key = process.env.ANTHROPIC_API_KEY; // Use server key
-        // NOTE: If using client-provided key in body, need to pass it here. 
-        // For /roll, let's assume Env key or req.body.apiKey if we want to support that.
+        const key = process.env.ANTHROPIC_API_KEY;
         const apiKeyToUse = req.body.apiKey || key;
 
         let aiMessage = null;
@@ -372,11 +331,9 @@ router.post('/campaigns/:id/roll', authenticateToken, async (req, res) => {
                 aiText = response.content[0].text;
             } catch (err) {
                 console.warn("AI Generation failed on roll", err);
-                // Fallback? just don't return AI message
             }
 
             if (aiText) {
-                // Parse Updates
                 let finalContent = aiText;
                 const updateRegex = /<<<UPDATE\s*(\{.*?\})\s*>>>/s;
                 const match = aiText.match(updateRegex);
@@ -417,30 +374,27 @@ router.post('/campaigns/:id/roll', authenticateToken, async (req, res) => {
     }
 });
 
-// --- IMAGE GENERATION ENDPOINT ---
-const OpenAI = require('openai');
-
+// --- IMAGE GENERATION ENDPOINT (Google Nano Banana / Imagen) ---
 router.post('/campaigns/:id/image', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { apiKey } = req.body; // OpenAI Key
+    const { apiKey } = req.body;
 
-    // Prioritize body key, then env key
-    const openAIKey = apiKey || process.env.OPENAI_API_KEY;
+    // Prioritize body key, then env key (Supports Server-Side Config)
+    const googleKey = apiKey || process.env.GOOGLE_API_KEY;
 
-    if (!openAIKey) {
-        return res.status(400).json({ error: 'OpenAI API Key required (Set in Settings or .env)' });
+    if (!googleKey) {
+        return res.status(400).json({ error: 'Google API Key required (Set in Settings or .env as GOOGLE_API_KEY)' });
     }
 
     try {
         const campaign = await prisma.campaign.findUnique({
             where: { id },
-            include: { messages: { orderBy: { createdAt: 'asc' }, take: -10 } } // Last 10 messages
+            include: { messages: { orderBy: { createdAt: 'asc' }, take: -10 } }
         });
 
         if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
-        // 1. Generate Image Prompt using Claude (or fallback to simple concatenation)
-        // We use the same Anthropic client as the game loop
+        // 1. Generate Image Prompt using Claude
         let imagePrompt = "A fantasy scene from a D&D campaign.";
         const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
@@ -448,41 +402,46 @@ router.post('/campaigns/:id/image', authenticateToken, async (req, res) => {
             const anthropic = new Anthropic({ apiKey: anthropicKey });
             const recentHistory = campaign.messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
             const promptMsg = await anthropic.messages.create({
-                model: "claude-haiku-4-5-20251001", // Fast model for prompt gen
+                model: "claude-haiku-4-5-20251001",
                 max_tokens: 200,
-                system: "You are an art director. Summarize the current scene into a vivid, detailed prompt for DALL-E 3. Focus on visual elements, lighting, and atmosphere. Output ONLY the prompt.",
+                system: "You are an art director. Summarize the current scene into a vivid, detailed prompt for an image generator (Google Imagen). Focus on visual elements, lighting, and atmosphere. Output ONLY the prompt.",
                 messages: [{ role: "user", content: `Context:\n${recentHistory}\n\nDescribe the current scene:` }]
             });
             imagePrompt = promptMsg.content[0].text;
         }
 
-        // 2. Generate Image with DALL-E 3
-        const openai = new OpenAI({ apiKey: openAIKey });
+        // 2. Generate Image with Google (Imagen 3)
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${googleKey}`;
 
-        const response = await openai.images.generate({
-            model: "dall-e-3",
-            prompt: imagePrompt,
-            n: 1,
-            size: "1024x1024",
-            quality: "standard",
-            response_format: "url"
+        const body = {
+            instances: [
+                { prompt: imagePrompt }
+            ],
+            parameters: {
+                sampleCount: 1,
+                aspectRatio: "1:1"
+            }
+        };
+
+        const response = await axios.post(url, body, {
+            headers: { 'Content-Type': 'application/json' }
         });
 
-        const imageUrl = response.data[0].url;
+        const predictions = response.data.predictions;
+        if (!predictions || predictions.length === 0) {
+            throw new Error("No image generated by Google API");
+        }
 
-        // Optional: Save this event to chat? 
-        // For now, just return the URL to the frontend to display in a modal or inline.
-        // Let's create a SYSTEM message embedding the image? 
-        // Markdown doesn't support remote images well if they expire (DALL-E URLs expire).
-        // Best to just return it and let FE handle it, or save to DB?
-        // Saving to DB is hard without blob storage.
-        // We will return it to FE. FE can show it in a "Vision" modal.
+        const b64 = predictions[0].bytesBase64Encoded;
+        const mime = predictions[0].mimeType || "image/png";
+        const imageUrl = `data:${mime};base64,${b64}`;
 
         res.json({ imageUrl, prompt: imagePrompt });
 
     } catch (error) {
-        console.error("Image Gen Error:", error);
-        res.status(500).json({ error: 'Failed to generate image', details: error.message });
+        const errorDetails = error.response ? error.response.data : error.message;
+        console.error("Google Image Gen Error:", JSON.stringify(errorDetails, null, 2));
+        res.status(500).json({ error: 'Failed to generate image with Google', details: errorDetails });
     }
 });
 
