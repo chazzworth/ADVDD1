@@ -149,7 +149,11 @@ export default function GameSession() {
                     }
                 } else {
                     console.error("Image Gen Failed", error);
-                    const msg = error.response?.data?.error || error.response?.data?.details || error.message;
+                    let msg = error.response?.data?.error || error.message;
+                    if (error.response?.data?.details) {
+                        const details = error.response.data.details;
+                        msg += ` (${typeof details === 'object' ? JSON.stringify(details).slice(0, 100) : details})`;
+                    }
                     alert(`Visualization failed: ${msg}`);
                     setShowImageModal(false);
                     setImageLoading(false);
@@ -373,9 +377,10 @@ export default function GameSession() {
                             type="button"
                             onClick={handleVisualize}
                             title="Visualize Scene"
-                            className="bg-zinc-800 hover:bg-purple-900/50 text-zinc-400 hover:text-purple-300 p-3 rounded-xl border border-zinc-800 hover:border-purple-500 transition-all mb-[1px]"
+                            className="bg-zinc-800 hover:bg-purple-900/50 text-zinc-400 hover:text-purple-300 px-3 py-3 rounded-xl border border-zinc-800 hover:border-purple-500 transition-all mb-[1px] flex items-center gap-2 group"
                         >
-                            <Eye className="w-5 h-5" />
+                            <Eye className="w-5 h-5 group-hover:text-purple-300" />
+                            <span className="text-xs font-semibold text-zinc-500 group-hover:text-purple-200 transition-colors hidden sm:inline">Peer into the world</span>
                         </button>
                         <input
                             type="text"

@@ -438,7 +438,9 @@ router.post('/campaigns/:id/image', authenticateToken, async (req, res) => {
     } catch (error) {
         const errorDetails = error.response ? error.response.data : error.message;
         console.error("Google Image Gen Error:", JSON.stringify(errorDetails, null, 2));
-        res.status(500).json({ error: 'Failed to generate image with Google', details: errorDetails });
+        // Return the upstream error message if possible
+        const upstreamMsg = error.response?.data?.error?.message || error.message;
+        res.status(500).json({ error: `Google API Error: ${upstreamMsg}`, details: errorDetails });
     }
 });
 
