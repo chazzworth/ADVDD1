@@ -417,4 +417,73 @@ router.post('/campaigns/:id/roll', authenticateToken, async (req, res) => {
     }
 });
 
+// --- IMAGE GENERATION ENDPOINT ---
+const OpenAI = require('openai');
+
+router.post('/campaigns/:id/image', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { apiKey } = req.body; // OpenAI Key
+
+    // Prioritize body key, then env key
+    const openAIKey = apiKey || process.env.OPENAI_API_KEY;
+
+    if (!openAIKey) {
+        return res.status(400).json({ error: 'OpenAI API Key required (Set in Settings or .env)' });
+    }
+
+    try {
+        const campaign = await prisma.campaign.findUnique({
+            where: { id },
+            include: { messages: { orderBy: { createdAt: 'asc' }, take: -10 } } // Last 10 messages
+        });
+
+        if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+        // 1. Generate Image Prompt using Claude (or fallback to simple concatenation)
+        // We use the same Anthropic client as the game loop
+        let imagePrompt = "A fantasy scene from a D&D campaign.";
+        const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+        if (anthropicKey) {
+            const anthropic = new Anthropic({ apiKey: anthropicKey });
+            const recentHistory = campaign.messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+            const promptMsg = await anthropic.messages.create({
+                model: "claude-haiku-4-5-20251001", // Fast model for prompt gen
+                max_tokens: 200,
+                system: "You are an art director. Summarize the current scene into a vivid, detailed prompt for DALL-E 3. Focus on visual elements, lighting, and atmosphere. Output ONLY the prompt.",
+                messages: [{ role: "user", content: `Context:\n${recentHistory}\n\nDescribe the current scene:` }]
+            });
+            imagePrompt = promptMsg.content[0].text;
+        }
+
+        // 2. Generate Image with DALL-E 3
+        const openai = new OpenAI({ apiKey: openAIKey });
+
+        const response = await openai.images.generate({
+            model: "dall-e-3",
+            prompt: imagePrompt,
+            n: 1,
+            size: "1024x1024",
+            quality: "standard",
+            response_format: "url"
+        });
+
+        const imageUrl = response.data[0].url;
+
+        // Optional: Save this event to chat? 
+        // For now, just return the URL to the frontend to display in a modal or inline.
+        // Let's create a SYSTEM message embedding the image? 
+        // Markdown doesn't support remote images well if they expire (DALL-E URLs expire).
+        // Best to just return it and let FE handle it, or save to DB?
+        // Saving to DB is hard without blob storage.
+        // We will return it to FE. FE can show it in a "Vision" modal.
+
+        res.json({ imageUrl, prompt: imagePrompt });
+
+    } catch (error) {
+        console.error("Image Gen Error:", error);
+        res.status(500).json({ error: 'Failed to generate image', details: error.message });
+    }
+});
+
 module.exports = router;

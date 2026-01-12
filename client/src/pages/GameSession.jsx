@@ -1,7 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import { Send, ArrowLeft, Dices, User, Bot, Backpack, Heart, Shield, Zap, Activity } from 'lucide-react';
+import ImageModal from '../components/ImageModal';
+import { Send, ArrowLeft, Dices, User, Bot, Backpack, Heart, Shield, Zap, Activity, Eye, Image as ImageIcon } from 'lucide-react';
 
 export default function GameSession() {
     const { id } = useParams();
@@ -14,6 +12,12 @@ export default function GameSession() {
     const messagesEndRef = useRef(null);
     const [apiKey, setApiKey] = useState('');
     const [showSettings, setShowSettings] = useState(false);
+
+    // Image Gen State
+    const [showImageModal, setShowImageModal] = useState(false);
+    const [imageLoading, setImageLoading] = useState(false);
+    const [currentImage, setCurrentImage] = useState(null);
+    const [currentPrompt, setCurrentPrompt] = useState(null);
 
     useEffect(() => {
         fetchCampaign();
@@ -49,7 +53,7 @@ export default function GameSession() {
                 lastError = error;
                 console.warn(`Attempt ${i + 1} failed. Retrying...`, error);
                 if (i < attempts - 1) {
-                    await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Exponential-ish backoff: 1s, 2s
+                    await new Promise(r => setTimeout(r, 1000 * (i + 1)));
                 }
             }
         }
@@ -72,7 +76,6 @@ export default function GameSession() {
                 apiKey: apiKey
             });
 
-            // Standard Message Response: { message, character? }
             const { message, character } = res.data;
             const incomingMsg = message || res.data;
 
@@ -101,21 +104,45 @@ export default function GameSession() {
                 apiKey: apiKey
             }, 3, `/game/campaigns/${id}/roll`);
 
-            // Roll Response: { userMessage, aiMessage, character? }
             const { userMessage, aiMessage, character } = res.data;
+
+            if (userMessage) setMessages(prev => [...prev, userMessage]);
+            if (aiMessage) setMessages(prev => [...prev, aiMessage]);
 
             if (character) {
                 setCampaign(prev => ({ ...prev, character }));
             }
         } catch (error) {
             console.error("Failed to send roll", error);
-            setMessages(prev => {
-                const newMessages = prev.filter(msg => msg !== rollingMsg); // Remove the temporary message
-                newMessages.push({ role: 'system', content: "Error: Failed to send roll to DM (Retry failed). Please roll again." });
-                return newMessages;
-            });
+            setMessages(prev => [...prev, { role: 'system', content: "Error: Failed to send roll to DM. Please roll again." }]);
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleVisualize = async () => {
+        let key = apiKey;
+        if (!key) {
+            key = prompt("Please enter your OpenAI API Key for Image Generation (or configure on server):");
+            if (!key) return;
+            setApiKey(key); // Cache it for session
+        }
+
+        setImageLoading(true);
+        setShowImageModal(true);
+        setCurrentImage(null);
+        setCurrentPrompt(null);
+
+        try {
+            const res = await api.post(`/game/campaigns/${id}/image`, { apiKey: key });
+            setCurrentImage(res.data.imageUrl);
+            setCurrentPrompt(res.data.prompt);
+        } catch (error) {
+            console.error("Image Gen Failed", error);
+            alert("Failed to generate image. Check API Key.");
+            setShowImageModal(false);
+        } finally {
+            setImageLoading(false);
         }
     };
 
@@ -123,13 +150,23 @@ export default function GameSession() {
 
     return (
         <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
+            <ImageModal
+                isOpen={showImageModal}
+                onClose={() => setShowImageModal(false)}
+                imageUrl={currentImage}
+                prompt={currentPrompt}
+                loading={imageLoading}
+            />
+
             {/* Sidebar / Context Panel */}
             <aside className="w-80 bg-zinc-900 border-r border-zinc-800 flex-col hidden md:flex">
-                <div className="p-4 border-b border-zinc-800 flex items-center gap-2">
-                    <button onClick={() => navigate('/')} className="hover:bg-zinc-800 p-2 rounded-full transition-colors">
-                        <ArrowLeft className="w-5 h-5 text-zinc-400" />
-                    </button>
-                    <h2 className="font-bold truncate">{campaign?.name}</h2>
+                <div className="p-4 border-b border-zinc-800 flex items-center gap-2 justify-between">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => navigate('/')} className="hover:bg-zinc-800 p-2 rounded-full transition-colors">
+                            <ArrowLeft className="w-5 h-5 text-zinc-400" />
+                        </button>
+                        <h2 className="font-bold truncate max-w-[120px]">{campaign?.name}</h2>
+                    </div>
                 </div>
 
                 <div className="flex-1 p-4 overflow-y-auto">
@@ -269,9 +306,19 @@ export default function GameSession() {
 
             {/* Main Chat Area */}
             <main className="flex-1 flex flex-col min-w-0 relative">
-                <div className="absolute top-4 right-4 text-xs text-zinc-600 font-mono z-20 select-none pointer-events-none">
-                    v1.3.0
+                <div className="absolute top-4 right-4 z-20 flex gap-2">
+                    <button
+                        onClick={handleVisualize}
+                        title="Visualize Scene"
+                        className="bg-zinc-800/80 hover:bg-purple-900/80 backdrop-blur text-zinc-300 hover:text-purple-300 p-2 rounded-full border border-zinc-700 hover:border-purple-500 transition-all shadow-lg"
+                    >
+                        <Eye className="w-5 h-5" />
+                    </button>
+                    <div className="text-xs text-zinc-600 font-mono py-2 select-none pointer-events-none">
+                        v1.3.0
+                    </div>
                 </div>
+
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
                     {messages.length === 0 && (
                         <div className="text-center text-zinc-500 my-20">
@@ -291,7 +338,7 @@ export default function GameSession() {
                                 ? 'bg-zinc-800 text-zinc-100 rounded-tr-none'
                                 : 'bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-tl-none prose prose-invert max-w-none whitespace-pre-wrap'
                                 }`}>
-                                {msg.content} {/* In real app, markdown render here */}
+                                {msg.content}
                             </div>
                             {msg.role === 'user' && (
                                 <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
