@@ -321,15 +321,8 @@ export default function GameSession() {
             {/* Main Chat Area */}
             <main className="flex-1 flex flex-col min-w-0 relative">
                 <div className="absolute top-4 right-4 z-20 flex gap-2">
-                    <button
-                        onClick={handleVisualize}
-                        title="Visualize Scene"
-                        className="bg-zinc-800/80 hover:bg-purple-900/80 backdrop-blur text-zinc-300 hover:text-purple-300 p-2 rounded-full border border-zinc-700 hover:border-purple-500 transition-all shadow-lg"
-                    >
-                        <Eye className="w-5 h-5" />
-                    </button>
                     <div className="text-xs text-zinc-600 font-mono py-2 select-none pointer-events-none">
-                        v1.3.0
+                        v1.3.1
                     </div>
                 </div>
 
@@ -379,7 +372,15 @@ export default function GameSession() {
                 </div>
 
                 <div className="p-4 border-t border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
-                    <form onSubmit={handleSend} className="max-w-4xl mx-auto flex gap-3">
+                    <form onSubmit={handleSend} className="max-w-4xl mx-auto flex gap-3 items-end">
+                        <button
+                            type="button"
+                            onClick={handleVisualize}
+                            title="Visualize Scene"
+                            className="bg-zinc-800 hover:bg-purple-900/50 text-zinc-400 hover:text-purple-300 p-3 rounded-xl border border-zinc-800 hover:border-purple-500 transition-all mb-[1px]"
+                        >
+                            <Eye className="w-5 h-5" />
+                        </button>
                         <input
                             type="text"
                             value={input}
