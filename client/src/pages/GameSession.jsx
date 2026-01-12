@@ -123,7 +123,7 @@ export default function GameSession() {
     const handleVisualize = async () => {
         let key = apiKey;
         if (!key) {
-            key = prompt("Please enter your OpenAI API Key for Image Generation (or configure on server):");
+            key = prompt("Please enter your Google API Key for Image Generation (Imagen 3):");
             if (!key) return;
             setApiKey(key); // Cache it for session
         }
@@ -139,7 +139,7 @@ export default function GameSession() {
             setCurrentPrompt(res.data.prompt);
         } catch (error) {
             console.error("Image Gen Failed", error);
-            alert("Failed to generate image. Check API Key.");
+            alert("Failed to generate image. Check Google API Key.");
             setShowImageModal(false);
         } finally {
             setImageLoading(false);
