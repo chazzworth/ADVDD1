@@ -410,17 +410,14 @@ router.post('/campaigns/:id/image', authenticateToken, async (req, res) => {
             imagePrompt = promptMsg.content[0].text;
         }
 
-        // 2. Generate Image with Google (Imagen 3)
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${googleKey}`;
+        // 2. Generate Image with Google (Imagen 3 / Gemini 3 Pro)
+        // User requested: "gemini-3-pro-image-preview"
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:predict?key=${googleKey}`;
 
         const body = {
             instances: [
                 { prompt: imagePrompt }
-            ],
-            parameters: {
-                sampleCount: 1,
-                aspectRatio: "1:1"
-            }
+            ]
         };
 
         const response = await axios.post(url, body, {
