@@ -312,7 +312,7 @@ export default function GameSession() {
 
                 <div className="p-4 border-t border-zinc-800">
                     <div className="flex justify-between items-center text-xs text-zinc-600">
-                        <span>v1.3.0</span>
+                        <span>v1.3.2</span>
                         <span>Powered by Claude 4.5</span>
                     </div>
                 </div>
@@ -320,11 +320,7 @@ export default function GameSession() {
 
             {/* Main Chat Area */}
             <main className="flex-1 flex flex-col min-w-0 relative">
-                <div className="absolute top-4 right-4 z-20 flex gap-2">
-                    <div className="text-xs text-zinc-600 font-mono py-2 select-none pointer-events-none">
-                        v1.3.1
-                    </div>
-                </div>
+                {/* Top Right Version Removed */}
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
                     {messages.length === 0 && (
