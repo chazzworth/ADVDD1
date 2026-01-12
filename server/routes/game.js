@@ -411,8 +411,8 @@ router.post('/campaigns/:id/image', authenticateToken, async (req, res) => {
         }
 
         // 2. Generate Image with Google (Imagen 3)
-        // Note: Switched to 'imagen-3.0-generate-002' due to preview 404
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${googleKey}`;
+        // Fallback to 'imagen-3.0-generate-001' as 002 was 404.
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${googleKey}`;
 
         const body = {
             instances: [
@@ -445,6 +445,28 @@ router.post('/campaigns/:id/image', authenticateToken, async (req, res) => {
         // Return the upstream error message if possible
         const upstreamMsg = error.response?.data?.error?.message || error.message;
         res.status(500).json({ error: `Google API Error: ${upstreamMsg}`, details: errorDetails });
+    }
+});
+
+// Debug Route: List all available models
+router.get('/debug-models', async (req, res) => {
+    try {
+        const apiKey = process.env.GOOGLE_API_KEY;
+        if (!apiKey) return res.send("No Server Key");
+
+        // Fetch models from Google
+        const response = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+
+        // Filter for image models
+        const imageModels = response.data.models.filter(m => m.name.includes('imagen') || m.name.includes('image'));
+
+        res.json({
+            count: response.data.models.length,
+            image_models: imageModels,
+            all_models: response.data.models
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message, details: error.response?.data });
     }
 });
 
